@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <cmath>
+#include <vector>
 
 // normalize a vector, if it's length is null the same vector is returned!
 sf::Vector2f normalize(const sf::Vector2f vec){
@@ -30,6 +31,73 @@ sf::Vector2f reflectBallFromPaddle(sf::Vector2f ballDir, float ballY, float padd
 struct SSCore{
     int left = 0;
     int right = 0;
+};
+
+class State {
+    private:
+        bool disposed = false;
+    public:
+        /* Handle input, if it should not bubble, return false. */
+        virtual bool handleInput(const sf::Event &input) = 0;
+        virtual void update(float elapsedSeconds) = 0;
+        virtual void draw(sf::RenderWindow *window) = 0;
+        const virtual void dispose() {
+            disposed = true;
+        };
+};
+class MenuState : State {
+    private:
+        int selectedEntry = 0;
+        std::string entries[2] = {"Play", "Exit"};
+        std::vector<sf::Text> shTexts;
+    public:
+        MenuState(sf::Font &font, sf::Vector2f position){
+            for(auto entry : entries){
+                sf::Text text;
+                text.setFont(font);
+                text.setCharacterSize(40.f);
+                text.setString(entry);
+                text.setFillColor(sf::Color::Black);
+                text.setOutlineColor(sf::Color::White);
+                text.setOutlineThickness(4.);
+                auto bounds = text.getLocalBounds();
+                position += sf::Vector2f(0, bounds.height*1.5);
+                text.setPosition(position + sf::Vector2f(-bounds.width/2, 0));
+                shTexts.push_back(text);
+            }
+        }
+        bool handleInput(const sf::Event &event){
+            switch(event.type){
+                case sf::Event::KeyPressed: {
+                    switch(event.key.code){
+                        case sf::Keyboard::Escape:
+                            dispose();
+                            break;
+                        case sf::Keyboard::Down:
+                            shTexts[selectedEntry].setFillColor(sf::Color::Black);
+                            selectedEntry = (selectedEntry + 1) % shTexts.size();
+                            shTexts[selectedEntry].setFillColor(sf::Color::Green);
+                            break;
+                        case sf::Keyboard::Up:
+                            shTexts[selectedEntry].setFillColor(sf::Color::Black);
+                            selectedEntry = (selectedEntry - 1) % shTexts.size();
+                            shTexts[selectedEntry].setFillColor(sf::Color::Green);
+                            break;
+                        case sf::Keyboard::Return:
+                            std::cout << "Selected " << entries[selectedEntry] << std::endl;
+                    }
+                break;
+                }
+            }
+        }
+
+        void update(float elapsedSeconds){            
+        }
+        void draw(sf::RenderWindow *window){
+            for(auto entry : shTexts){
+                window->draw(entry);
+            }
+        }
 };
 
 int main()
@@ -79,6 +147,8 @@ int main()
     sf::Vector2f ballRadius(shBall.getRadius(), shBall.getRadius()); 
     // score
     SSCore score;
+
+    MenuState menuState(font, sf::Vector2f(MID_X, MID_Y));
     
     //clock
     sf::Clock clock;
@@ -88,13 +158,19 @@ int main()
         sf::Event event;
         while (window.pollEvent(event))
         {
+            bool canBubble = true;
+            if(canBubble){
+                canBubble = menuState.handleInput(event);
+            }
             switch(event.type){
                 case sf::Event::Closed:
                     window.close();
+                    canBubble = false;
                     break;
                 case sf::Event::KeyPressed:
                     if(event.key.code == sf::Keyboard::Escape)
                         window.close();
+                        canBubble = false;
                     break;
             }
         }
@@ -149,12 +225,16 @@ int main()
         dirBall.y = fmax(fmin(dirBall.y, 0.7), -0.7);
         posBall += multiply(normalize(dirBall), SPEED_BALL*elapsedTime);
 
+        menuState.update(elapsedTime);
+        
+
         // update image positions
         shBall.setPosition(posBall-ballRadius);
         shPaddleLeft.setPosition(posPaddleLeft);
         shPaddleRight.setPosition(posPaddleRight);
         shScoreText.setString(std::to_string(score.left) + " :: " + std::to_string(score.right));
         shScoreText.setPosition(MID_X, MIN_Y - shScoreText.getCharacterSize());
+        
         // draw screen
         window.clear(sf::Color(0,0,0,10));
         window.draw(fieldBorders);
@@ -162,6 +242,7 @@ int main()
         window.draw(shPaddleLeft);
         window.draw(shPaddleRight);
         window.draw(shScoreText);
+        menuState.draw(&window);
         window.display();
     }
 
