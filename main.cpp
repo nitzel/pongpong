@@ -33,6 +33,76 @@ struct SSCore{
     int right = 0;
 };
 
+
+// interface for sth controlling a paddle
+class PaddleController {
+public:
+    enum Action{
+        None = 0,
+        Up,
+        Down
+    };
+    // Returns the direction the controller wants to move the paddle
+    virtual Action Act(sf::Vector2f ball, sf::Vector2f ballSpeed, sf::FloatRect thisPaddle, sf::FloatRect enemyPaddle) = 0;
+};
+class PaddleAI : public PaddleController {
+    Action Act(sf::Vector2f ball, sf::Vector2f ballSpeed, sf::FloatRect thisPaddle, sf::FloatRect enemyPaddle) override {
+        std::cout << "thisPaddle" << thisPaddle.left << "/" << thisPaddle.top << " | " << thisPaddle.width << "/" << thisPaddle.height << std::endl;
+        float thisPaddleYCenter = thisPaddle.top + thisPaddle.height/2;
+
+        if(ball.y > thisPaddleYCenter)
+            return Action::Down;
+        if (ball.y < thisPaddleYCenter)
+            return Action::Up;
+        return Action::None;
+    }
+};
+class PaddleKeyboard : public PaddleController {
+private:
+    sf::Keyboard::Key m_up;
+    sf::Keyboard::Key m_down;
+public:
+    PaddleKeyboard(sf::Keyboard::Key up, sf::Keyboard::Key down) : 
+        m_up(up), 
+        m_down(down){
+    }
+    Action Act(sf::Vector2f ball, sf::Vector2f ballSpeed, sf::FloatRect thisPaddle, sf::FloatRect enemyPaddle) override {
+        std::cout << "thisPaddle" << thisPaddle.left << "/" << thisPaddle.top << " | " << thisPaddle.width << "/" << thisPaddle.height << std::endl;
+        if(sf::Keyboard::isKeyPressed(m_down)){
+            return Action::Down;
+        }
+        if(sf::Keyboard::isKeyPressed(m_up)){
+            return Action::Up;
+        }
+        return Action::None;
+    }
+};
+
+sf::Vector2f movePaddle(const sf::Vector2f currentPosition, PaddleController::Action action, const float paddleSpeed, const float elapsedSeconds){
+    std::cout << "Action" << action << std::endl;
+    switch(action){
+        case PaddleController::Action::Up:
+            return currentPosition - sf::Vector2f(0, paddleSpeed * elapsedSeconds);
+        case PaddleController::Action::Down:
+            return currentPosition + sf::Vector2f(0, paddleSpeed * elapsedSeconds);
+        default:
+            return currentPosition;
+    }
+}
+// keeps min <= obj <= max. if !(min < max) behaviour undefined 
+float keepInBounds(float obj, float min, float max){
+    return fmax(fmin(obj, min), max);
+}
+sf::Vector2f keepInBounds(const sf::Vector2f obj, const sf::FloatRect bounds){
+    return sf::Vector2f(
+        keepInBounds(obj.x, bounds.left, bounds.left + bounds.width),
+        keepInBounds(obj.y, bounds.top, bounds.top + bounds.height)
+    );
+}
+
+auto ctrlLeft = std::unique_ptr<PaddleController>(new PaddleAI());
+auto ctrlRight = std::unique_ptr<PaddleController>(new PaddleAI());
+
 class State {
     private:
         bool disposed = false;
@@ -40,16 +110,21 @@ class State {
         /* Handle input, if it should not bubble, return false. */
         virtual bool handleInput(const sf::Event &input) = 0;
         virtual void update(float elapsedSeconds) = 0;
-        virtual void draw(sf::RenderWindow *window) = 0;
-        const virtual void dispose() {
+        virtual void draw(sf::RenderWindow &window) = 0;
+        const void dispose() {
             disposed = true;
-        };
+        }
+        const bool isDisposed() {
+            return disposed;
+        }
 };
+
 class MenuState : State {
     private:
         int selectedEntry = 0;
-        std::string entries[2] = {"Play", "Exit"};
+        std::string entries[3] = {"Singlepalyer (UP/DOWN)", "2 Player (W/S, UP/DOWN)", "Exit"};
         std::vector<sf::Text> shTexts;
+        float alpha = 0;
     public:
         MenuState(sf::Font &font, sf::Vector2f position){
             for(auto entry : entries){
@@ -61,9 +136,10 @@ class MenuState : State {
                 text.setOutlineColor(sf::Color::White);
                 text.setOutlineThickness(4.);
                 auto bounds = text.getLocalBounds();
-                position += sf::Vector2f(0, bounds.height*1.5);
                 text.setPosition(position + sf::Vector2f(-bounds.width/2, 0));
                 shTexts.push_back(text);
+                // next text should be 1.5 lines lower than this one
+                position += sf::Vector2f(0, bounds.height*1.5);
             }
         }
         bool handleInput(const sf::Event &event){
@@ -85,17 +161,34 @@ class MenuState : State {
                             break;
                         case sf::Keyboard::Return:
                             std::cout << "Selected " << entries[selectedEntry] << std::endl;
+                            switch(selectedEntry){
+                                case 0:
+                                    ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
+                                    ctrlLeft  = std::unique_ptr<PaddleController>(new PaddleAI());
+                                    break;
+                                case 1:
+                                    ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
+                                    ctrlLeft = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::A, sf::Keyboard::Key::B));
+                                    break;
+                                case 2:
+                                    break;
+                            }
+                            dispose();
                     }
                 break;
                 }
             }
         }
 
-        void update(float elapsedSeconds){            
+        void update(float elapsedSeconds){   
+            alpha = fmod(alpha + elapsedSeconds*512, 512.f);
+            shTexts[selectedEntry].setFillColor(sf::Color(0xfc, 0x9a, 0x04, abs(static_cast<int>(256-alpha))));
         }
-        void draw(sf::RenderWindow *window){
+        void draw(sf::RenderWindow &window){
+            if(isDisposed())
+                return;
             for(auto entry : shTexts){
-                window->draw(entry);
+                window.draw(entry);
             }
         }
 };
@@ -111,8 +204,8 @@ int main()
     const float MIN_Y = 50.f;
     const float MAX_X = 750.f;
     const float MAX_Y = 550.f;
-    const float MID_X = (MAX_X-MIN_X)/2;
-    const float MID_Y = (MAX_Y-MIN_Y)/2;
+    const float MID_X = (MAX_X+MIN_X)/2;
+    const float MID_Y = (MAX_Y+MIN_Y)/2;
 
     // setting up sf window
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML works!");
@@ -143,12 +236,12 @@ int main()
     sf::Vector2f posPaddleLeft(MIN_X - shPaddleLeft.getLocalBounds().width, MID_Y);
     sf::Vector2f posPaddleRight(MAX_X, MID_Y);
     sf::Vector2f posBall(MID_X, MID_Y);
-    sf::Vector2f dirBall(1,0);
+    sf::Vector2f dirBall(1,1);
     sf::Vector2f ballRadius(shBall.getRadius(), shBall.getRadius()); 
     // score
     SSCore score;
 
-    MenuState menuState(font, sf::Vector2f(MID_X, MID_Y));
+    MenuState menuState(font, sf::Vector2f(MID_X, MID_Y-MIN_Y));
     
     //clock
     sf::Clock clock;
@@ -176,24 +269,22 @@ int main()
         }
 
         //
-        float elapsedTime = clock.getElapsedTime().asSeconds();
+        float elapsedSeconds = clock.getElapsedTime().asSeconds();
         clock.restart();
 
         ///////
-        // user paddle movements
-        if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)){
-            posPaddleRight.y += SPEED_PADDLE * elapsedTime;
-        }
-        if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)){
-            posPaddleRight.y -= SPEED_PADDLE * elapsedTime;
-        }
-        posPaddleRight.y = fmax(posPaddleRight.y, MIN_Y);
-        posPaddleRight.y = fmin(posPaddleRight.y, MAX_Y-shPaddleRight.getLocalBounds().height);
-        // AI paddle movements
-        if(posBall.y > posPaddleLeft.y + shPaddleLeft.getLocalBounds().height/2)
-            posPaddleLeft.y += SPEED_PADDLE * elapsedTime;
-        if (posBall.y < posPaddleLeft.y + shPaddleLeft.getLocalBounds().height/2)
-            posPaddleLeft.y -= SPEED_PADDLE * elapsedTime;
+        // paddle controller movements
+        posPaddleLeft = movePaddle(
+            posPaddleLeft,
+            ctrlLeft->Act(posBall, dirBall, shPaddleLeft.getGlobalBounds(), shPaddleRight.getGlobalBounds()),
+            SPEED_PADDLE,
+            elapsedSeconds);
+        posPaddleRight = movePaddle(
+            posPaddleRight,
+            ctrlRight->Act(posBall, dirBall*SPEED_BALL, shPaddleRight.getGlobalBounds(), shPaddleLeft.getGlobalBounds()),
+            SPEED_PADDLE,
+            elapsedSeconds);
+        
         
         ///////
         // ball movement
@@ -223,9 +314,9 @@ int main()
             }
         }
         dirBall.y = fmax(fmin(dirBall.y, 0.7), -0.7);
-        posBall += multiply(normalize(dirBall), SPEED_BALL*elapsedTime);
+        posBall += multiply(normalize(dirBall), SPEED_BALL*elapsedSeconds);
 
-        menuState.update(elapsedTime);
+        menuState.update(elapsedSeconds);
         
 
         // update image positions
@@ -242,7 +333,7 @@ int main()
         window.draw(shPaddleLeft);
         window.draw(shPaddleRight);
         window.draw(shScoreText);
-        menuState.draw(&window);
+        menuState.draw(window);
         window.display();
     }
 
