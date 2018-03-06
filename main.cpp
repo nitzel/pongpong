@@ -122,7 +122,7 @@ class State {
 class MenuState : State {
     private:
         int selectedEntry = 0;
-        std::string entries[3] = {"Singlepalyer (UP/DOWN)", "2 Player (W/S, UP/DOWN)", "Exit"};
+        std::string entries[3] = {"Singleplayer (Up/Down)", "2 Player (W/S, Up/Down)", "Exit"};
         std::vector<sf::Text> shTexts;
         float alpha = 0;
     public:
@@ -168,7 +168,7 @@ class MenuState : State {
                                     break;
                                 case 1:
                                     ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
-                                    ctrlLeft = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::A, sf::Keyboard::Key::B));
+                                    ctrlLeft = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::W, sf::Keyboard::Key::S));
                                     break;
                                 case 2:
                                     break;
