@@ -324,7 +324,7 @@ int main()
         shPaddleLeft.setPosition(posPaddleLeft);
         shPaddleRight.setPosition(posPaddleRight);
         shScoreText.setString(std::to_string(score.left) + " :: " + std::to_string(score.right));
-        shScoreText.setPosition(MID_X, MIN_Y - shScoreText.getCharacterSize());
+        shScoreText.setPosition(MID_X - shScoreText.getLocalBounds().width/2, MIN_Y - shScoreText.getCharacterSize());
         
         // draw screen
         window.clear(sf::Color(0,0,0,10));
