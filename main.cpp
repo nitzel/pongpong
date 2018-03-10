@@ -2,6 +2,8 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <memory>
+#include <algorithm>
 
 // normalize a vector, if it's length is null the same vector is returned!
 sf::Vector2f normalize(const sf::Vector2f vec){
@@ -28,6 +30,7 @@ sf::Vector2f reflectBallFromPaddle(sf::Vector2f ballDir, float ballY, float padd
     return sf::Vector2f(-ballDir.x, ballDir.y + relativeOffsetSquaredSigned);
 }
 
+// keeps track of the score of the left/right player
 struct SSCore{
     int left = 0;
     int right = 0;
@@ -45,9 +48,9 @@ public:
     // Returns the direction the controller wants to move the paddle
     virtual Action Act(sf::Vector2f ball, sf::Vector2f ballSpeed, sf::FloatRect thisPaddle, sf::FloatRect enemyPaddle) = 0;
 };
+// paddle controlled by AI
 class PaddleAI : public PaddleController {
     Action Act(sf::Vector2f ball, sf::Vector2f ballSpeed, sf::FloatRect thisPaddle, sf::FloatRect enemyPaddle) override {
-        std::cout << "thisPaddle" << thisPaddle.left << "/" << thisPaddle.top << " | " << thisPaddle.width << "/" << thisPaddle.height << std::endl;
         float thisPaddleYCenter = thisPaddle.top + thisPaddle.height/2;
 
         if(ball.y > thisPaddleYCenter)
@@ -57,6 +60,7 @@ class PaddleAI : public PaddleController {
         return Action::None;
     }
 };
+// paddle controlled by keyboard
 class PaddleKeyboard : public PaddleController {
 private:
     sf::Keyboard::Key m_up;
@@ -67,7 +71,6 @@ public:
         m_down(down){
     }
     Action Act(sf::Vector2f ball, sf::Vector2f ballSpeed, sf::FloatRect thisPaddle, sf::FloatRect enemyPaddle) override {
-        std::cout << "thisPaddle" << thisPaddle.left << "/" << thisPaddle.top << " | " << thisPaddle.width << "/" << thisPaddle.height << std::endl;
         if(sf::Keyboard::isKeyPressed(m_down)){
             return Action::Down;
         }
@@ -79,7 +82,6 @@ public:
 };
 
 sf::Vector2f movePaddle(const sf::Vector2f currentPosition, PaddleController::Action action, const float paddleSpeed, const float elapsedSeconds){
-    std::cout << "Action" << action << std::endl;
     switch(action){
         case PaddleController::Action::Up:
             return currentPosition - sf::Vector2f(0, paddleSpeed * elapsedSeconds);
@@ -100,98 +102,257 @@ sf::Vector2f keepInBounds(const sf::Vector2f obj, const sf::FloatRect bounds){
     );
 }
 
+// ptrs to the paddle controllers - exchange depending on game modus
+// ai vs ai for background animation while in menu
 auto ctrlLeft = std::unique_ptr<PaddleController>(new PaddleAI());
 auto ctrlRight = std::unique_ptr<PaddleController>(new PaddleAI());
 
 class State {
     private:
         bool disposed = false;
+    
     public:
-        /* Handle input, if it should not bubble, return false. */
+        // return true if you want the updates to bubble through lower states
         virtual bool handleInput(const sf::Event &input) = 0;
-        virtual void update(float elapsedSeconds) = 0;
-        virtual void draw(sf::RenderWindow &window) = 0;
+        virtual bool update(float elapsedSeconds) = 0;
+        virtual bool draw(sf::RenderWindow &window) = 0;
+        virtual void print() const{
+            std::cout << "State::print" << std::endl;
+        }
         const void dispose() {
+            std::cout << "disposing state" << std::endl;
+            print();
             disposed = true;
         }
-        const bool isDisposed() {
+        bool isDisposed() const{
             return disposed;
         }
 };
 
-class MenuState : State {
-    private:
-        int selectedEntry = 0;
-        std::string entries[3] = {"Singleplayer (Up/Down)", "2 Player (W/S, Up/Down)", "Exit"};
-        std::vector<sf::Text> shTexts;
-        float alpha = 0;
-    public:
-        MenuState(sf::Font &font, sf::Vector2f position){
-            for(auto entry : entries){
-                sf::Text text;
-                text.setFont(font);
-                text.setCharacterSize(40.f);
-                text.setString(entry);
-                text.setFillColor(sf::Color::Black);
-                text.setOutlineColor(sf::Color::White);
-                text.setOutlineThickness(4.);
-                auto bounds = text.getLocalBounds();
-                text.setPosition(position + sf::Vector2f(-bounds.width/2, 0));
-                shTexts.push_back(text);
-                // next text should be 1.5 lines lower than this one
-                position += sf::Vector2f(0, bounds.height*1.5);
+class StateManager : public State {
+private:
+    std::vector<std::unique_ptr<State>> stateStack;
+    void cleanUpDisposed(){
+        for (auto it = stateStack.begin(); it != stateStack.end(); it++){
+            if((*it)->isDisposed()){
+                it = stateStack.erase(it);
+                it--; 
             }
         }
-        bool handleInput(const sf::Event &event){
-            switch(event.type){
-                case sf::Event::KeyPressed: {
-                    switch(event.key.code){
-                        case sf::Keyboard::Escape:
-                            dispose();
-                            break;
-                        case sf::Keyboard::Down:
-                            shTexts[selectedEntry].setFillColor(sf::Color::Black);
-                            selectedEntry = (selectedEntry + 1) % shTexts.size();
-                            shTexts[selectedEntry].setFillColor(sf::Color::Green);
-                            break;
-                        case sf::Keyboard::Up:
-                            shTexts[selectedEntry].setFillColor(sf::Color::Black);
-                            selectedEntry = (selectedEntry - 1) % shTexts.size();
-                            shTexts[selectedEntry].setFillColor(sf::Color::Green);
-                            break;
-                        case sf::Keyboard::Return:
-                            std::cout << "Selected " << entries[selectedEntry] << std::endl;
-                            switch(selectedEntry){
-                                case 0:
-                                    ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
-                                    ctrlLeft  = std::unique_ptr<PaddleController>(new PaddleAI());
-                                    break;
-                                case 1:
-                                    ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
-                                    ctrlLeft = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::W, sf::Keyboard::Key::S));
-                                    break;
-                                case 2:
-                                    break;
-                            }
-                            dispose();
-                    }
+    }
+
+public:
+    bool noStatesLeft(){
+        return stateStack.empty();
+    }
+
+    void push(std::unique_ptr<State> state){
+        std::cout << "stm push (len: " << stateStack.size() << std::endl;
+        stateStack.push_back(std::move(state));
+        std::cout << "         (len: " << stateStack.size() << std::endl;
+    }
+    std::unique_ptr<State> pop(){
+        (*stateStack.end())->dispose();
+        stateStack.pop_back();
+    }
+    StateManager(){
+        std::cout << "StateManager initialized" << std::endl;
+    }
+
+    // state implementation
+    bool handleInput(const sf::Event &input) override {
+        std::cout << "stm handle input" << std::endl;
+        for (auto it = stateStack.rbegin(); it != stateStack.rend(); it++){
+            std::cout << "   ...";
+            (*it)->print();
+            if(!(*it)->handleInput(input))
                 break;
-                }
-            }
+        }
+        return false;
+    }
+    
+    bool update(float elapsedSeconds) override {
+        std::cout << "stm update" << std::endl;
+        for (auto it = stateStack.rbegin(); it != stateStack.rend(); it++){
+            std::cout << "   ...";
+            (*it)->print();
+            if(!(*it)->update(elapsedSeconds))
+                break;
         }
 
-        void update(float elapsedSeconds){   
-            alpha = fmod(alpha + elapsedSeconds*512, 512.f);
-            shTexts[selectedEntry].setFillColor(sf::Color(0xfc, 0x9a, 0x04, abs(static_cast<int>(256-alpha))));
+        return false;
+    }
+    bool draw(sf::RenderWindow &window) override {
+        std::cout << "stm draw" << std::endl;
+        for (auto it = stateStack.rbegin(); it != stateStack.rend(); it++){
+            std::cout << "   ...";
+            (*it)->print();
+            if(!(*it)->draw(window))
+                break;
         }
-        void draw(sf::RenderWindow &window){
-            if(isDisposed())
-                return;
-            for(auto entry : shTexts){
-                window.draw(entry);
+        cleanUpDisposed();
+        return false;
+    }
+
+    void print() const override{
+        std::cout << "StateManager::print" << std::endl;
+    }
+};
+
+class MenuState : public State {
+private:
+    int selectedEntry = 0;
+    std::string entries[3] = {"Singleplayer (Up/Down)", "2 Player (W/S, Up/Down)", "Exit"};
+    std::vector<sf::Text> shTexts;
+    float alpha = 0;
+    std::shared_ptr<StateManager> stateManager;
+public:
+    MenuState(std::shared_ptr<StateManager> stateMgr, const sf::Font *font, sf::Vector2f position)
+    :   stateManager(stateMgr)
+    {
+        for(auto entry : entries){
+            sf::Text text;
+            text.setFont(*font);
+            text.setCharacterSize(40.f);
+            text.setString(entry);
+            text.setFillColor(sf::Color::Black);
+            text.setOutlineColor(sf::Color::White);
+            text.setOutlineThickness(4.);
+            auto bounds = text.getLocalBounds();
+            text.setPosition(position + sf::Vector2f(-bounds.width/2, 0));
+            shTexts.push_back(text);
+            // next text should be 1.5 lines lower than this one
+            position += sf::Vector2f(0, bounds.height*1.5);
+        }
+    }
+
+    bool handleInput(const sf::Event &event) override {
+        switch(event.type){
+            case sf::Event::KeyPressed: {
+                switch(event.key.code){
+                    case sf::Keyboard::Escape:
+                        dispose();
+                        break;
+                    case sf::Keyboard::Down:
+                        shTexts[selectedEntry].setFillColor(sf::Color::Black);
+                        selectedEntry = (selectedEntry + 1) % shTexts.size();
+                        shTexts[selectedEntry].setFillColor(sf::Color::Green);
+                        break;
+                    case sf::Keyboard::Up:
+                        shTexts[selectedEntry].setFillColor(sf::Color::Black);
+                        selectedEntry = (selectedEntry - 1) % shTexts.size();
+                        shTexts[selectedEntry].setFillColor(sf::Color::Green);
+                        break;
+                    case sf::Keyboard::Return:
+                        std::cout << "Selected " << entries[selectedEntry] << std::endl;
+                        switch(selectedEntry){
+                            case 0:
+                                ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
+                                ctrlLeft  = std::unique_ptr<PaddleController>(new PaddleAI());
+                                break;
+                            case 1:
+                                ctrlRight  = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
+                                ctrlLeft = std::unique_ptr<PaddleController>(new PaddleKeyboard(sf::Keyboard::Key::W, sf::Keyboard::Key::S));
+                                break;
+                            case 2:
+                                break;
+                        }
+                        dispose();
+                }
+            break;
             }
         }
+        return false;
+    }
+
+    bool update(float elapsedSeconds) override {   
+        alpha = fmod(alpha + elapsedSeconds*512, 512.f);
+        shTexts[selectedEntry].setFillColor(sf::Color(0xfc, 0x9a, 0x04, abs(static_cast<int>(256-alpha))));
+        return true;
+    }
+
+    bool draw(sf::RenderWindow &window) override {
+        if(isDisposed())
+            return true;
+        for(auto entry : shTexts){
+            window.draw(entry);
+        }
+        return true;
+    }
+    void print() const override{
+        std::cout << "MenuState::print" << std::endl;
+    }
 };
+
+// displays text that rotates around pos in a radius r, starting at angle=relPos
+// on spacebar: creates a new TextState element at the same position with different text/radius
+// on enter: will delete itself
+class TextState : public State {
+private:
+    std::shared_ptr<StateManager> stateManager;
+    sf::Text text;
+    sf::Vector2f position;
+    float relativePosition;
+    float radius;
+    std::string displayText;
+public:
+    TextState(std::shared_ptr<StateManager> stateManager, std::string sText, const sf::Vector2f pos, const sf::Font *font, float rad, float relPos)
+    :   stateManager(stateManager),
+        position(pos),
+        radius(rad),
+        displayText(sText),
+        relativePosition(relPos)
+    {                
+        text.setFont(*font);
+        text.setCharacterSize(40.f);
+        text.setString(displayText);
+        text.setFillColor(sf::Color::Black);
+        text.setOutlineColor(sf::Color::White);
+        text.setOutlineThickness(4.);
+        text.setPosition(position);
+        std::cout << "TextState " << displayText << " initialized" << std::endl;
+    }
+    bool handleInput(const sf::Event &input){
+        std::cout << "TextState::handleInput" << std::endl;
+        if(input.type == sf::Event::EventType::KeyReleased && input.key.code == sf::Keyboard::Key::Return)
+            dispose();
+        else if(input.type == sf::Event::EventType::KeyReleased && input.key.code == sf::Keyboard::Key::Space)
+            stateManager->push(std::make_unique<TextState>(stateManager, displayText=="foo"?"bar":"foo", position, text.getFont(), radius+10, relativePosition));
+        else if(input.type == sf::Event::EventType::KeyReleased && input.key.code == sf::Keyboard::Key::Tab)
+            stateManager->push(std::make_unique<MenuState>(stateManager, text.getFont(), text.getPosition()));
+        return false;
+    }
+    bool update(float elapsedSeconds)
+    {
+        std::cout << "TextState::update" << std::endl;
+        relativePosition += elapsedSeconds * 4;
+        auto pos = position + multiply(sf::Vector2f(sin(relativePosition), cos(relativePosition)), radius);
+        text.setPosition(pos);
+        return false;
+    }
+    bool draw(sf::RenderWindow &window){
+        std::cout << "TextState::draw" << std::endl;
+        std::cout << " -> text is" << text.getString().toAnsiString() << std::endl;
+        window.draw(text);
+        return true;
+    }
+    void print() const override{
+        std::cout << "TextState::print" << std::endl;
+    }
+};
+
+int main1(){
+     std::vector<int> vec;
+     vec.push_back(1);
+     vec.push_back(3);
+     vec.push_back(5);
+     vec.push_back(7);
+
+    for (auto it = vec.rend(); it != vec.rbegin(); it--){
+        std::cout << ":: " << *it << std::endl;
+    }
+     
+}
 
 int main()
 {
@@ -241,29 +402,22 @@ int main()
     // score
     SSCore score;
 
-    MenuState menuState(font, sf::Vector2f(MID_X, MID_Y-MIN_Y));
+    //MenuState menuState(font, sf::Vector2f(MID_X, MID_Y-MIN_Y));
+    auto stateManager = std::make_shared<StateManager>();
+    stateManager->push(std::make_unique<TextState>(stateManager, "BabelBa", sf::Vector2f(MID_X, MID_Y), &font, 100, 0));
     
     //clock
     sf::Clock clock;
 
-    while (window.isOpen())
+    while (window.isOpen() && !stateManager->noStatesLeft())
     {        
         sf::Event event;
         while (window.pollEvent(event))
         {
-            bool canBubble = true;
-            if(canBubble){
-                canBubble = menuState.handleInput(event);
-            }
+            stateManager->handleInput(event);
             switch(event.type){
                 case sf::Event::Closed:
                     window.close();
-                    canBubble = false;
-                    break;
-                case sf::Event::KeyPressed:
-                    if(event.key.code == sf::Keyboard::Escape)
-                        window.close();
-                        canBubble = false;
                     break;
             }
         }
@@ -316,7 +470,7 @@ int main()
         dirBall.y = fmax(fmin(dirBall.y, 0.7), -0.7);
         posBall += multiply(normalize(dirBall), SPEED_BALL*elapsedSeconds);
 
-        menuState.update(elapsedSeconds);
+        stateManager->update(elapsedSeconds);
         
 
         // update image positions
@@ -333,7 +487,7 @@ int main()
         window.draw(shPaddleLeft);
         window.draw(shPaddleRight);
         window.draw(shScoreText);
-        menuState.draw(window);
+        stateManager->draw(window);
         window.display();
     }
 
