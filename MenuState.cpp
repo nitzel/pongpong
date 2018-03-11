@@ -1,13 +1,17 @@
 #include "MenuState.hpp"
+#include "GameState.hpp"
 #include <memory>
 #include "IPaddleController.hpp"
 #include "StateManager.hpp"
 #include <cmath>
 
-MenuState::MenuState(std::shared_ptr<StateManager> stateMgr, const sf::Font *font, sf::Vector2f position)
+MenuState::MenuState(std::shared_ptr<StateManager> stateMgr, sf::Font *font, sf::Vector2f const screenSize)
 :   IState("Menu"),
-    stateManager(stateMgr)
+    stateManager(stateMgr),
+    font(font),
+    screenSize(screenSize)
 {
+    sf::Vector2f position(screenSize.x/2, screenSize.y/12);
     for(auto entry : entries){
         sf::Text text;
         text.setFont(*font);
@@ -45,17 +49,18 @@ bool MenuState::handleInput(const sf::Event &event) {
                     std::cout << "Selected " << entries[selectedEntry] << std::endl;
                     switch(selectedEntry){
                         case 0:
-                            //ctrlRight  = std::unique_ptr<IPaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
-                            //ctrlLeft  = std::unique_ptr<IPaddleController>(new PaddleAI());
+                            stateManager->push(std::make_unique<GameState>(stateManager, font, GameState::PaddleModus::AI, GameState::PaddleModus::Keyboard, screenSize));
                             break;
                         case 1:
-                            //ctrlRight  = std::unique_ptr<IPaddleController>(new PaddleKeyboard(sf::Keyboard::Key::Up, sf::Keyboard::Key::Down));
-                            //ctrlLeft = std::unique_ptr<IPaddleController>(new PaddleKeyboard(sf::Keyboard::Key::W, sf::Keyboard::Key::S));
+                            stateManager->push(std::make_unique<GameState>(stateManager, font, GameState::PaddleModus::Keyboard, GameState::PaddleModus::Keyboard, screenSize));
                             break;
                         case 2:
+                            stateManager->push(std::make_unique<GameState>(stateManager, font, GameState::PaddleModus::AI, GameState::PaddleModus::AI, screenSize));
+                            break;
+                        case 3:
+                            dispose();
                             break;
                     }
-                    dispose();
             }
         break;
         }
