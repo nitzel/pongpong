@@ -9,6 +9,11 @@
             "command": "g++",
             "args": [
                 "main.cpp",
+                "helpers.cpp",
+                "PaddleAI.cpp",
+                "PaddleKeyboard.cpp",
+                "StateManager.cpp",
+                "MenuState.cpp",
                 "-std=c++17",
                 "-I ./SFML-2.4.2/include",
                 "-L ./SFML-2.4.2/lib", 

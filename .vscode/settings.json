@@ -1,0 +1,14 @@
+{
+    "C_Cpp.autocomplete": "Default",
+    "C_Cpp.intelliSenseEngine": "Default",
+    "C_Cpp.intelliSenseEngineFallback": "Disabled",
+    "C_Cpp.loggingLevel": "Warning",
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "SFML-2.4.2": true
+    }
+}
