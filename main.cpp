@@ -5,6 +5,8 @@
 #include <algorithm>
 #include "StateManager.hpp"
 #include "MenuState.hpp"
+#include "GameState.hpp"
+
 
 int main()
 {
@@ -18,7 +20,39 @@ int main()
     //MenuState menuState(font, sf::Vector2f(MID_X, MID_Y-MIN_Y));
     auto stateManager = std::make_shared<StateManager>();
     
-    stateManager->push(std::make_unique<MenuState>(stateManager, &font, sf::Vector2f(window.getSize())));
+    
+    std::vector<StringAction> menuActions {
+        StringAction(std::string("Singleplayer (Up/Down)"), 
+                    [](ActionState*s){
+                            s->stateManager->push(std::make_unique<GameState>(
+                                s->stateManager, 
+                                s->font, 
+                                GameState::PaddleModus::AI, 
+                                GameState::PaddleModus::Keyboard, 
+                                s->screenSize));
+                    }),
+        StringAction(std::string("Player vs Player (W/S, Up/Down)"),
+                    [](ActionState*s){
+                            s->stateManager->push(std::make_unique<GameState>(
+                                s->stateManager, 
+                                s->font, 
+                                GameState::PaddleModus::AI, 
+                                GameState::PaddleModus::Keyboard, 
+                                s->screenSize));
+                    }),
+        StringAction(std::string("AI vs AI"),
+                    [](ActionState*s){
+                            s->stateManager->push(std::make_unique<GameState>(
+                                s->stateManager, 
+                                s->font, 
+                                GameState::PaddleModus::AI, 
+                                GameState::PaddleModus::Keyboard, 
+                                s->screenSize));
+                    }),
+        StringAction(std::string("Exit"), [](ActionState*s){s->dispose();})
+    };
+
+    stateManager->push(std::make_unique<MenuState>("main", stateManager, &font, sf::Vector2f(window.getSize()), menuActions, AllowedForwardActions(false, false, true)));
     
     //clock
     sf::Clock clock;

@@ -27,10 +27,6 @@ void StateManager::push(std::unique_ptr<IState> state){
     stateStack.push_back(std::move(state));
     std::cout << "         (len: " << stateStack.size() << std::endl;
 }
-std::unique_ptr<IState> StateManager::pop(){
-    (*stateStack.end())->dispose();
-    stateStack.pop_back();
-}
 
 /// IState implementation
 bool StateManager::handleInput(const sf::Event &input) {

@@ -4,6 +4,7 @@
 #include "IPaddleController.hpp"
 #include "helpers.hpp"
 #include <memory>
+#include "MenuState.hpp"
 
 // Contains the game state, logic and visualization
 // Two paddles, a rectangle, a ball. The ball is reflected
@@ -61,6 +62,9 @@ private:
     sf::Vector2f posPaddleLeft;
     sf::Vector2f posPaddleRight;
 
+    sf::Font* const font;
+    sf::Vector2f const screenSize;
+
 public:
     enum PaddleModus {
         Keyboard = 0,
@@ -70,8 +74,20 @@ public:
     GameState(std::shared_ptr<StateManager> stateManager, sf::Font *font, PaddleModus leftPlayer, PaddleModus rightPlayer, sf::Vector2f screenSize);
     // pause on escape
     bool handleInput(const sf::Event &input){
-        if(input.type == sf::Event::EventType::KeyReleased && input.key.code == sf::Keyboard::Key::Escape)
-            dispose(); // todo push pause state
+        if(input.type == sf::Event::EventType::KeyReleased && input.key.code == sf::Keyboard::Key::Escape)    
+        {
+            std::vector<StringAction> pauseMenuActions {
+                StringAction(std::string("Continue"), 
+                            [](ActionState*s){s->dispose();}),
+                StringAction(std::string("Back to main menu"),
+                            [this](ActionState*s){
+                                    s->dispose(); // mark pause menu to be removed
+                                    this->dispose(); // and the game, too
+                            })
+            };
+            // add pause menu
+            stateManager->push(std::make_unique<MenuState>(std::string("pause"), stateManager, font, screenSize, pauseMenuActions, AllowedForwardActions(false, false, true)));
+        }
     }
     // process keyboard input etc. yes, i know.
     bool update(float elapsedSeconds);

@@ -5,18 +5,21 @@
 #include "StateManager.hpp"
 #include <cmath>
 
-MenuState::MenuState(std::shared_ptr<StateManager> stateMgr, sf::Font *font, sf::Vector2f const screenSize)
-:   IState("Menu"),
+MenuState::MenuState(std::string name, std::shared_ptr<StateManager> stateMgr, sf::Font *font, sf::Vector2f const screenSize, 
+                     std::vector<StringAction> itemsAndActions, AllowedForwardActions forwardActions)
+:   IState("Menu<"+name+">"),
     stateManager(stateMgr),
+    itemActions(itemsAndActions),
     font(font),
-    screenSize(screenSize)
+    screenSize(screenSize),
+    forwardActions(forwardActions)
 {
     sf::Vector2f position(screenSize.x/2, screenSize.y/12);
-    for(auto entry : entries){
+    for(auto entry : itemsAndActions){
         sf::Text text;
         text.setFont(*font);
         text.setCharacterSize(40.f);
-        text.setString(entry);
+        text.setString(entry.name);
         text.setFillColor(sf::Color::Black);
         text.setOutlineColor(sf::Color::White);
         text.setOutlineThickness(4.);
@@ -30,7 +33,7 @@ MenuState::MenuState(std::shared_ptr<StateManager> stateMgr, sf::Font *font, sf:
 
 bool MenuState::handleInput(const sf::Event &event) {
     switch(event.type){
-        case sf::Event::KeyPressed: {
+        case sf::Event::KeyReleased: {
             switch(event.key.code){
                 case sf::Keyboard::Escape:
                     dispose();
@@ -46,32 +49,19 @@ bool MenuState::handleInput(const sf::Event &event) {
                     shTexts[selectedEntry].setFillColor(sf::Color::Green);
                     break;
                 case sf::Keyboard::Return:
-                    std::cout << "Selected " << entries[selectedEntry] << std::endl;
-                    switch(selectedEntry){
-                        case 0:
-                            stateManager->push(std::make_unique<GameState>(stateManager, font, GameState::PaddleModus::AI, GameState::PaddleModus::Keyboard, screenSize));
-                            break;
-                        case 1:
-                            stateManager->push(std::make_unique<GameState>(stateManager, font, GameState::PaddleModus::Keyboard, GameState::PaddleModus::Keyboard, screenSize));
-                            break;
-                        case 2:
-                            stateManager->push(std::make_unique<GameState>(stateManager, font, GameState::PaddleModus::AI, GameState::PaddleModus::AI, screenSize));
-                            break;
-                        case 3:
-                            dispose();
-                            break;
-                    }
+                    std::cout << "Selected " << itemActions[selectedEntry].name << std::endl;
+                    itemActions[selectedEntry].action(this);
             }
         break;
         }
     }
-    return false;
+    return forwardActions.handleInput;
 }
 
 bool MenuState::update(float elapsedSeconds) {   
     alpha = fmod(alpha + elapsedSeconds*512, 512.f);
     shTexts[selectedEntry].setFillColor(sf::Color(0xfc, 0x9a, 0x04, abs(static_cast<int>(256-alpha))));
-    return true;
+    return forwardActions.update;
 }
 
 void MenuState::draw(sf::RenderTarget &canvas) {

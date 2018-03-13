@@ -1,10 +1,11 @@
 #include "GameState.hpp"
-
 // contains only the lengthy method-defintions, the shorter ones are in the hpp
 
 GameState::GameState(std::shared_ptr<StateManager> stateManager, sf::Font *font, PaddleModus leftPlayer, PaddleModus rightPlayer, sf::Vector2f screenSize)
 :   IState("GameState"),
-    stateManager(stateManager)
+    stateManager(stateManager),
+    font(font),
+    screenSize(screenSize)
 {
     // calculate field bounds
     field.left = screenSize.x / 16;

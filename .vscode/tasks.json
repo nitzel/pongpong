@@ -22,7 +22,8 @@
                 "-lsfml-window",
                 "-lsfml-system",
                 "-o game.exe",
-                "-g"
+                "-g",
+                //"-O3" // size and speed optimizations for release
             ],
             "group": {
                 "kind": "build",
