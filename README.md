@@ -7,9 +7,11 @@ Pong in C++ with SFML
 - AI vs AI (though this is not very interesting, the AI is merely deflecting the ball but not doing any attacks). When the game starts, the ball will fly in a horizontal line so the AI has actually nothing to do in this game mode. Change the starting angle to see some action.
 - Player vs AI (not as easy as it sounds)
 - There is a menu available :)
+- You can press escape to pause the game and from there also go back to the main menu
+- I dislike the font :-/
 
 ### ToDo
-- [ ] Pause state
+- [x] Pause state
 - [ ] Highscore
 
 Yes, the code is dirty. It's all about quick and dirty - getting something playable.
