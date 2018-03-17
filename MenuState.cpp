@@ -1,5 +1,4 @@
 #include "MenuState.hpp"
-#include "GameState.hpp"
 #include <memory>
 #include "IPaddleController.hpp"
 #include "StateManager.hpp"

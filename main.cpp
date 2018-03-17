@@ -46,7 +46,7 @@ int main()
                                 s->stateManager, 
                                 s->font, 
                                 GameState::PaddleModus::AI, 
-                                GameState::PaddleModus::Keyboard, 
+                                GameState::PaddleModus::AI, 
                                 s->screenSize));
                     }),
         StringAction(std::string("Exit"), [](ActionState*s){s->dispose();})
