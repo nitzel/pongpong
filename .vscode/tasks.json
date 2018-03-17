@@ -1,33 +1,41 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
+    // from https://stackoverflow.com/a/46510586/5124673
+
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build sfml sample",
+            "label": "buildgame",
             "type": "shell",
-            "command": "g++",
-            "args": [
-                "main.cpp",
-                "helpers.cpp",
-                "PaddleAI.cpp",
-                "PaddleKeyboard.cpp",
-                "StateManager.cpp",
-                "MenuState.cpp",
-                "GameState.cpp",
-                "-std=c++17",
-                "-I ./SFML-2.4.2/include",
-                "-L ./SFML-2.4.2/lib", 
-                "-lsfml-graphics", 
-                "-lsfml-window",
-                "-lsfml-system",
-                "-o game.exe",
-                "-g",
-                //"-O3" // size and speed optimizations for release
-            ],
+            "command": "make",
+            // directory of the makefile
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            // start the build without prompting for task selection, use "group": "build" otherwise
             "group": {
                 "kind": "build",
                 "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            // arg passing example: in this case is executed make game.exe
+            "args": ["game.exe"],
+            // Use the standard less compilation problem matcher.
+            "problemMatcher": {
+                "owner": "cpp",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
             }
         }
     ]
